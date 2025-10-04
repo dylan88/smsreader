@@ -9,6 +9,25 @@ const options = {
 
 const parser = new XMLParser(options);
 
+// Normalise les numéros de téléphone français
+// Convertit 6xxxxxxx en 336xxxxxxx et 7xxxxxxx en 337xxxxxxx
+export function normalizePhoneNumber(address) {
+  if (!address) return '';
+
+  // Convertir en chaîne si c'est un nombre
+  const addressStr = String(address);
+
+  // Supprimer les espaces et caractères spéciaux
+  const cleaned = addressStr.replace(/[\s\-\.]/g, '');
+
+  // Si c'est un numéro français mobile à 9 chiffres commençant par 6 ou 7
+  if (/^[67]\d{8}$/.test(cleaned)) {
+    return '33' + cleaned;
+  }
+
+  return cleaned;
+}
+
 export function parseXMLFile(xmlContent) {
   try {
     const result = parser.parse(xmlContent);
@@ -23,7 +42,7 @@ export function parseXMLFile(xmlContent) {
       : [result.smses.sms];
 
     return smsArray.map(sms => ({
-      address: sms.address || '',
+      address: normalizePhoneNumber(sms.address),
       date: parseInt(sms.date) || 0,
       type: parseInt(sms.type) || 0,
       body: sms.body || '',

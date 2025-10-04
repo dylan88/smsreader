@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { parseXMLFile, removeDuplicates } from '../utils/xmlParser';
+import { parseXMLFile, removeDuplicates, normalizePhoneNumber } from '../utils/xmlParser';
 import { db } from '../db';
 
 export default function FileImport({ onImportComplete }) {
@@ -108,6 +108,44 @@ export default function FileImport({ onImportComplete }) {
     }
   };
 
+  const handleNormalizePhones = async () => {
+    if (!window.confirm('Normaliser tous les numéros de téléphone dans la base de données ? (6xxxxxxx → 336xxxxxxx)')) {
+      return;
+    }
+
+    setIsProcessing(true);
+    try {
+      const allSms = await db.sms.toArray();
+      const updated = [];
+
+      for (const sms of allSms) {
+        const normalizedAddress = normalizePhoneNumber(sms.address);
+        if (normalizedAddress !== sms.address) {
+          updated.push({
+            ...sms,
+            address: normalizedAddress
+          });
+        }
+      }
+
+      if (updated.length > 0) {
+        // Supprimer les anciens et ajouter les normalisés
+        await db.sms.bulkPut(updated);
+        alert(`${updated.length} numéros normalisés`);
+      } else {
+        alert('Aucun numéro à normaliser');
+      }
+
+      const totalInDb = await db.sms.count();
+      onImportComplete(totalInDb);
+    } catch (error) {
+      console.error('Erreur lors de la normalisation:', error);
+      alert('Erreur lors de la normalisation des numéros');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
   return (
     <div className="w-full max-w-4xl mx-auto p-6">
       <div
@@ -179,7 +217,14 @@ export default function FileImport({ onImportComplete }) {
         )}
       </div>
 
-      <div className="mt-6 flex justify-center">
+      <div className="mt-6 flex justify-center gap-4">
+        <button
+          onClick={handleNormalizePhones}
+          disabled={isProcessing}
+          className="px-4 py-2 text-sm text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          Normaliser les numéros
+        </button>
         <button
           onClick={handleClearData}
           disabled={isProcessing}
