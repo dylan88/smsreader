@@ -418,4 +418,4 @@ FodyWeavers.xsd
 *.msp
 
 # Local files
-.sms/*
+/sms/*
