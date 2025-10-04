@@ -7,25 +7,28 @@ export default function MessageList() {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
   const [highlightedMessageId, setHighlightedMessageId] = useState(null);
+  const [isSearching, setIsSearching] = useState(false);
   const messageRefs = useRef({});
 
   // Récupérer tous les SMS
   const allSms = useLiveQuery(() => db.sms.orderBy('date').reverse().toArray());
 
-  // Fonction de recherche
+  // Fonction de recherche avec debounce
   useEffect(() => {
-    const performSearch = async () => {
-      if (!searchQuery.trim()) {
-        setSearchResults([]);
-        return;
-      }
+    if (!searchQuery.trim()) {
+      setSearchResults([]);
+      setIsSearching(false);
+      return;
+    }
 
+    setIsSearching(true);
+
+    // Debounce: attendre 300ms après la dernière frappe
+    const timeoutId = setTimeout(async () => {
       const query = searchQuery.toLowerCase();
 
       // Récupérer tous les SMS et filtrer en JavaScript
       const allMessages = await db.sms.toArray();
-      console.log('Total messages in DB:', allMessages.length);
-      console.log('Search query:', query);
 
       const results = allMessages.filter(sms => {
         const bodyMatch = sms.body && String(sms.body).toLowerCase().includes(query);
@@ -33,11 +36,14 @@ export default function MessageList() {
         return bodyMatch || nameMatch;
       });
 
-      console.log('Search results:', results.length);
       setSearchResults(results.sort((a, b) => b.date - a.date));
-    };
+      setIsSearching(false);
+    }, 300);
 
-    performSearch();
+    // Cleanup: annuler le timeout si l'utilisateur continue de taper
+    return () => {
+      clearTimeout(timeoutId);
+    };
   }, [searchQuery]);
 
   // Fonction pour voir un message dans son contexte
@@ -116,7 +122,7 @@ export default function MessageList() {
     );
   };
 
-  const isSearching = searchQuery.trim().length > 0;
+  const hasSearchQuery = searchQuery.trim().length > 0;
 
   return (
     <div className="w-full max-w-7xl mx-auto p-6">
@@ -150,12 +156,26 @@ export default function MessageList() {
                 </div>
               </div>
               <h2 className="text-lg font-semibold text-gray-800">
-                {isSearching ? `Résultats (${searchResults.length})` : `Conversations (${conversationList.length})`}
+                {hasSearchQuery ? (
+                  isSearching ? (
+                    <span className="flex items-center gap-2">
+                      <svg className="animate-spin h-5 w-5 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      Recherche...
+                    </span>
+                  ) : (
+                    `Résultats (${searchResults.length})`
+                  )
+                ) : (
+                  `Conversations (${conversationList.length})`
+                )}
               </h2>
             </div>
             <div className="overflow-y-auto flex-1">
               <div className="divide-y divide-gray-200">
-                {isSearching ? (
+                {hasSearchQuery ? (
                   // Résultats de recherche
                   searchResults.length === 0 ? (
                     <div className="p-8 text-center text-gray-500">
